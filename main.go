@@ -17,6 +17,8 @@ Port is the default port the server listens on.
 const Port = 17200
 
 func main() {
+	// Initializes a new store object
+	_ = NewStore()
 
 	// Handles /healthcheck, which just returns State: OK for troubleshooting purposes.
 	http.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
