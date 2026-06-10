@@ -1,5 +1,8 @@
 name: Release
 
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -28,7 +31,7 @@ jobs:
         run: |
           mkdir -p dist
 
-          # Extract tag (ex: v1.0.0)
+          # Extrai a tag (ex: v1.0.0)
           TAG=${GITHUB_REF#refs/tags/}
 
           BIN_NAME="kosync-go"
