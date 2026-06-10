@@ -22,7 +22,6 @@ Port is the default port the server listens on.
 	The original Koreader Sync Server listens on port 7200 by default for
 	TLS connections and on port 17200 for plain HTTP.
 */
-const Port = 17200
 
 var LogInfo = log.New(os.Stdout, "INFO: ", log.LstdFlags)
 var LogError = log.New(os.Stderr, "ERROR:", log.LstdFlags)
@@ -34,7 +33,20 @@ func main() {
 	// CLI parameters
 	disableNewUsers := flag.Bool("disable-new-users", false, "disable creation of new users")
 	storeFile := flag.String("store-file", "kosync.json", "path to store the JSON data file")
+	insecure := flag.Bool("insecure", false, "run without TLS (for reverse proxy use)")
+	port := flag.Int("port", 0, "port to listen on (default: 7200 for TLS, 17200 for insecure)")
+	certFile := flag.String("cert", "", "path to TLS certificate file")
+	keyFile := flag.String("key", "", "path to TLS key file")
+	listenAddr := flag.String("listen-addr", "", "which address the server will listen for connections")
 	flag.Parse()
+
+	if *port == 0 {
+		if *insecure {
+			*port = 17200 // Default port for plain text
+		} else {
+			*port = 7200 // Default port for TLS
+		}
+	}
 
 	// Initializes a new store object
 
@@ -75,19 +87,53 @@ func main() {
 	// Creates the HTTP listener
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", Port),
+		Addr:         fmt.Sprintf("%s:%d", *listenAddr, *port),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  30 * time.Second,
 	}
 
 	go func() {
-		err := srv.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			LogError.Panicln(err)
+		if *insecure {
+			err := srv.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {
+				LogError.Panicln(err)
+			}
+		} else if *certFile != "" && *keyFile != "" {
+			err := srv.ListenAndServeTLS(*certFile, *keyFile)
+			if err != nil && err != http.ErrServerClosed {
+				LogError.Panicln(err)
+			}
+		} else {
+			// gera self-signed e usa ListenAndServeTLS
 		}
 	}()
-	LogInfo.Printf("kosync-go listening on port %d", Port)
+	if *insecure {
+		LogInfo.Printf("kosync-go listening insecurely on port %d", *port)
+	} else {
+		LogInfo.Printf("kosync-go listening with TLS on port %d", *port)
+	}
+
+	// Saves data to file ever 5 minutes, if there is data to be saved
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if mainStore.dirty.Load() {
+					LogInfo.Println("Data changed, saving state")
+					err = SaveStore(mainStore, *storeFile)
+					if err != nil {
+						LogError.Panicln(err.Error())
+					}
+					mainStore.dirty.Store(false)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	<-ctx.Done()
 	LogInfo.Println("Stopping server")
