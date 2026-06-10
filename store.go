@@ -1,8 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"sync"
+	"sync/atomic"
 )
+
+const defaultPath = "kosync.json"
 
 // User represents a registered user with a username and a hashed password key.
 type User struct {
@@ -24,14 +29,64 @@ type Progress struct {
 // The Progress map is structured as user -> book hash -> Progress object.
 type Store struct {
 	mu         sync.RWMutex
+	dirty      atomic.Bool
 	Users      map[string]User
 	Progresses map[string]map[string]Progress
 }
 
 // NewStore creates and initializes a new Store object.
-func NewStore() Store {
-	var s Store
+func NewStore() *Store {
+	s := &Store{}
 	s.Users = make(map[string]User)
 	s.Progresses = make(map[string]map[string]Progress)
 	return s
+}
+
+func SaveStore(store *Store, path string) error {
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+
+	if path == "" {
+		path = defaultPath
+	}
+
+	f, err := os.CreateTemp("/tmp", "kosync")
+	if err != nil {
+		return err
+	}
+
+	err = json.NewEncoder(f).Encode(store)
+	if err != nil {
+		return err
+	}
+	f.Close()
+	err = os.Rename(f.Name(), path)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func LoadStore(path string) (*Store, error) {
+	s := NewStore()
+	if path == "" {
+		path = defaultPath
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return s, nil
+		}
+		return s, err
+	}
+	defer f.Close()
+
+	err = json.NewDecoder(f).Decode(&s)
+	if err != nil {
+		return s, err
+	}
+
+	return s, nil
+
 }

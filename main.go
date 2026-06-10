@@ -18,7 +18,11 @@ const Port = 17200
 
 func main() {
 	// Initializes a new store object
-	mainStore := NewStore()
+
+	mainStore, err := LoadStore("")
+	if err != nil {
+		panic("Couldn't initialize data store: " + err.Error())
+	}
 
 	// Handles /healthcheck, which just returns State: OK for troubleshooting purposes.
 	http.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
@@ -27,15 +31,19 @@ func main() {
 	})
 
 	http.HandleFunc("/users/create", func(w http.ResponseWriter, r *http.Request) {
-		CreateUser(w, r, &mainStore)
+		CreateUser(w, r, mainStore)
 	})
 
 	http.HandleFunc("/users/auth", func(w http.ResponseWriter, r *http.Request) {
-		AuthUser(w, r, &mainStore)
+		AuthUser(w, r, mainStore)
 	})
 
 	http.HandleFunc("/syncs/progress", func(w http.ResponseWriter, r *http.Request) {
-		UpdateProgress(w, r, &mainStore)
+		UpdateProgress(w, r, mainStore)
+	})
+
+	http.HandleFunc("GET /syncs/progress/{document}", func(w http.ResponseWriter, r *http.Request) {
+		GetProgress(w, r, mainStore)
 	})
 
 	// Creates the HTTP listener

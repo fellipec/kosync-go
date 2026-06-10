@@ -2,4 +2,4 @@ module kosync
 
 go 1.25.0
 
-require golang.org/x/crypto v0.53.0 // indirect
+require golang.org/x/crypto v0.53.0

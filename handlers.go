@@ -79,6 +79,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 		Username: req.Username,
 		Key:      string(keyBytes),
 	}
+	store.dirty.Store(true)
 
 	// Returns the success to the client
 	w.Header().Set("Content-Type", "application/json")
@@ -132,6 +133,7 @@ func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 		store.Progresses[authUser] = make(map[string]Progress)
 	}
 	store.Progresses[authUser][reqProgress.Document] = reqProgress
+	store.dirty.Store(true)
 	store.mu.Unlock()
 
 	// Returns the success to the client
@@ -141,6 +143,30 @@ func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 		"document":  reqProgress.Document,
 		"timestamp": reqProgress.Timestamp,
 	})
+
+}
+
+func GetProgress(w http.ResponseWriter, r *http.Request, store *Store) {
+	authUser, err := requiresAuth(r, store)
+	if err != nil {
+		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+		return
+	}
+
+	reqDocument := r.PathValue("document")
+
+	store.mu.RLock()
+	foundProgress, exists := store.Progresses[authUser][reqDocument]
+	store.mu.RUnlock()
+	if !exists {
+		http.Error(w, "Those are not the droids you are looking for", http.StatusNotFound)
+		return
+	}
+
+	// Returns the success to the client
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK) // Returns 200
+	json.NewEncoder(w).Encode(foundProgress)
 
 }
 
