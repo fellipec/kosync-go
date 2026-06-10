@@ -46,7 +46,9 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
+          rm -f SHA256SUMS
           sha256sum * > SHA256SUMS
+
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
