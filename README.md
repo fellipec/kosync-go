@@ -48,7 +48,7 @@ Requires Go 1.26 or later.
 ## Options
 
 | Flag | Default | Description |
-|------|---------|-------------|
+| ------ | --------- | ------------- |
 | `--port` | 7200 (TLS) / 17200 (insecure) | Port to listen on |
 | `--listen-addr` | `` (all interfaces) | Address to bind to |
 | `--insecure` | false | Disable TLS (for reverse proxy use) |
@@ -108,6 +108,21 @@ systemctl daemon-reload
 systemctl enable --now kosync
 ```
 
+## Auto update (linux-amd64)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fellipec/kosync-go/master/kosync-update.sh | sudo sh
+```
+
+### What this script does
+
+- Fetches the latest release from GitHub  
+- Downloads the correct Linux AMD64 binary  
+- Stops the `kosync` systemd service  
+- Replaces the binary in `/usr/local/bin/kosync-go`  
+- Restarts the service  
+- Cleans up temporary files  
+
 ## KOReader configuration
 
 In KOReader set:
@@ -115,12 +130,12 @@ In KOReader set:
 - **Custom sync server**: your server URL (e.g. `https://k.example.com`)
 - **Username** and **password**: credentials you registered with the server
 
-To register a new user, make sure `--disable-new-users` is not active 
+To register a new user, make sure `--disable-new-users` is not active
 
 ## Security notes
 
 - Passwords are never stored in plain text. The server stores a bcrypt hash of the MD5 digest sent by KOReader.
-- The KOReader client sends an MD5 hash of the password, not the password itself. MD5 is considered insecure, so never use this open to the Internet without TLS encryption. 
+- The KOReader client sends an MD5 hash of the password, not the password itself. MD5 is considered insecure, so never use this open to the Internet without TLS encryption.
 - For production use, always run behind a reverse proxy with a valid TLS certificate.
 - After creating your account, you may want to use use `--disable-new-users` to prevent further registrations.
 
