@@ -18,12 +18,16 @@ const Port = 17200
 
 func main() {
 	// Initializes a new store object
-	_ = NewStore()
+	mainStore := NewStore()
 
 	// Handles /healthcheck, which just returns State: OK for troubleshooting purposes.
 	http.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, "{\"state\":\"OK\"}")
+	})
+
+	http.HandleFunc("/users/create", func(w http.ResponseWriter, r *http.Request) {
+		CreateUser(w, r, &mainStore)
 	})
 
 	// Creates the HTTP listener

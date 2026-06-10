@@ -7,7 +7,7 @@ import (
 // User represents a registered user with a username and a hashed password key.
 type User struct {
 	Username string `json:"username"`
-	Key      string `json:"key"`
+	Key      string `json:"key"` // a bcrypt hash of the received password send from KOReader
 }
 
 // Progress represents a book progress object, as received from the KOReader.
