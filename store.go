@@ -29,12 +29,13 @@ type Progress struct {
 // The Progress map is structured as user -> book hash -> Progress object.
 type Store struct {
 	mu         sync.RWMutex
-	dirty      atomic.Bool
+	dirty      atomic.Bool // Dirty flag for periodic saves
 	Users      map[string]User
 	Progresses map[string]map[string]Progress
 }
 
 // NewStore creates and initializes a new Store object.
+// Has to return a pointer because Mutex can't be copied
 func NewStore() *Store {
 	s := &Store{}
 	s.Users = make(map[string]User)
@@ -42,6 +43,7 @@ func NewStore() *Store {
 	return s
 }
 
+// Serializes and saves the Store object
 func SaveStore(store *Store, path string) error {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
@@ -66,6 +68,8 @@ func SaveStore(store *Store, path string) error {
 	return nil
 }
 
+// Loads a Store object from a file, or create a new one if the file don't
+// exists yet, without error.
 func LoadStore(path string) (*Store, error) {
 	s := NewStore()
 

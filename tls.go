@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// Generates a basic self-signed certificate
 func generateSelfSigned() (tls.Certificate, error) {
 
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -25,7 +26,7 @@ func generateSelfSigned() (tls.Certificate, error) {
 			Organization: []string{"kosync-go"},
 		},
 		NotBefore:   time.Now(),
-		NotAfter:    time.Now().Add(365 * 24 * time.Hour), // válido por 1 ano
+		NotAfter:    time.Now().Add(365 * 24 * time.Hour), // good for 1 year
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 	}
@@ -34,23 +35,25 @@ func generateSelfSigned() (tls.Certificate, error) {
 		return tls.Certificate{}, fmt.Errorf("Can't generate certificate %w", err)
 	}
 
-	// Codifica o certificado em PEM
 	certPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: certDER, // os bytes que vieram do CreateCertificate
+		Bytes: certDER,
 	})
 
-	// Para a chave privada, primeiro precisa serializar para DER
 	keyDER, err := x509.MarshalECPrivateKey(privateKey)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("Can't generate certificate %w", err)
+	}
 
-	// Depois codifica em PEM
 	keyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "EC PRIVATE KEY",
 		Bytes: keyDER,
 	})
 
-	// Agora monta o tls.Certificate
 	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("Can't generate certificate %w", err)
+	}
 
 	return cert, nil
 

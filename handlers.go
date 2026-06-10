@@ -20,6 +20,7 @@ type CreateUserRequest struct {
 // CreateUser handles the /user/create endpoint. It should receive from KOReader
 // a username and MD5 hashed password. If the user already exists, returns an error
 // else, creates de user
+// This program treats the MD5 hash as a plaintext password for every purpose.
 func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 	var req CreateUserRequest
 	ip := GetIP(r)
@@ -97,6 +98,8 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 
 }
 
+// Handler for the endpoint /users/auth. The real auth is done in
+// requiresAuth()
 func AuthUser(w http.ResponseWriter, r *http.Request, store *Store) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1024) // 1KB limit to prevent DoS
 	ip := GetIP(r)
@@ -117,6 +120,7 @@ func AuthUser(w http.ResponseWriter, r *http.Request, store *Store) {
 
 }
 
+// Handler for the //syncs/progress endpoint
 func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1024) // 1KB limit to prevent DoS
 	ip := GetIP(r)
@@ -129,6 +133,8 @@ func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 
 	var reqProgress Progress
 
+	// KOReader should send the Progress as a JSON object decoded here
+	// If the JSON doesn't decode, checks here too
 	err = json.NewDecoder(r.Body).Decode(&reqProgress)
 	if err != nil {
 		LogError.Printf("Invalid request body: - %v | IP=%s", err, ip)
@@ -136,14 +142,18 @@ func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 		return
 	}
 
+	// If for some reason the JSON decodes, but has empty fields, stop here to
+	// prevent an inconsistent state.
 	if reqProgress.Document == "" || reqProgress.Progress == "" || reqProgress.Device == "" {
 		LogError.Printf("Missing required fields: - %v | IP=%s", err, ip)
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
 
+	// The timestamps are managed by the server
 	reqProgress.Timestamp = time.Now().Unix()
 
+	// Add the received book progress to the Store
 	store.mu.Lock()
 	if store.Progresses[authUser] == nil {
 		store.Progresses[authUser] = make(map[string]Progress)
@@ -164,6 +174,9 @@ func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 
 }
 
+// Handler for the //syncs/progress/:document endpoint.
+// Returns the JSON of the progress for the requested book or
+// returns 404 not found if the book was never logged.
 func GetProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 	authUser, err := requiresAuth(r, store)
 	ip := GetIP(r)

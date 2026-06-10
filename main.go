@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -17,15 +18,28 @@ import (
 )
 
 /*
-Port is the default port the server listens on.
-
 	The original Koreader Sync Server listens on port 7200 by default for
 	TLS connections and on port 17200 for plain HTTP.
+
+	This implementation mimics that behavior. When running without any parameter,
+	kosync-go will generate a self-signed TLS certificate and starts a web
+	server on port 7200.
+
+	It has the same endpoints and behave likes the original Koreader Sync Server
+	to the clients. The server keeps its data in memory, dumping them to a JSON
+	file every 5 minutes, if there are changes. The default file is called
+	kosync.json and it will be created in the actual work folder.
+
+	For more information refer to the readme.md file.
 */
 
+// Loggers for the program
 var LogInfo = log.New(os.Stdout, "INFO: ", log.LstdFlags)
 var LogError = log.New(os.Stderr, "ERROR:", log.LstdFlags)
 
+// main defines the endpoints handlers, process command line parameters, deal
+// with signals from the system and periodically save the JSON file when changes
+// occur.
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
@@ -40,6 +54,7 @@ func main() {
 	listenAddr := flag.String("listen-addr", "", "which address the server will listen for connections")
 	flag.Parse()
 
+	// Makes sure if no port is defined to use the defaults
 	if *port == 0 {
 		if *insecure {
 			*port = 17200 // Default port for plain text
@@ -49,7 +64,6 @@ func main() {
 	}
 
 	// Initializes a new store object
-
 	mainStore, err := LoadStore(*storeFile)
 	if err != nil {
 		LogError.Panicln("Couldn't initialize data store: " + err.Error())
@@ -62,6 +76,7 @@ func main() {
 		LogInfo.Println("Health checked!")
 	})
 
+	// Handles /users/create endpoint, if the --disable-new-users option is not in use
 	http.HandleFunc("/users/create", func(w http.ResponseWriter, r *http.Request) {
 		if *disableNewUsers {
 			http.Error(w, "Can't create new user", http.StatusForbidden)
@@ -72,6 +87,7 @@ func main() {
 		CreateUser(w, r, mainStore)
 	})
 
+	// Handlers for /users/auth and //syncs/progress
 	http.HandleFunc("/users/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthUser(w, r, mainStore)
 	})
@@ -85,7 +101,6 @@ func main() {
 	})
 
 	// Creates the HTTP listener
-
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", *listenAddr, *port),
 		ReadTimeout:  5 * time.Second,
@@ -93,6 +108,7 @@ func main() {
 		IdleTimeout:  30 * time.Second,
 	}
 
+	// Runs the HTTP listener, obeying the CLI parameters
 	go func() {
 		if *insecure {
 			err := srv.ListenAndServe()
@@ -105,7 +121,17 @@ func main() {
 				LogError.Panicln(err)
 			}
 		} else {
-			// gera self-signed e usa ListenAndServeTLS
+			selfCert, err := generateSelfSigned()
+			if err != nil {
+				LogError.Panicln("Error creating self-signed certificate", err)
+			}
+			srv.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{selfCert},
+			}
+			err = srv.ListenAndServeTLS("", "")
+			if err != nil && err != http.ErrServerClosed {
+				LogError.Panicln(err)
+			}
 		}
 	}()
 	if *insecure {
@@ -135,6 +161,7 @@ func main() {
 		}
 	}()
 
+	// Gracefully ends the server on SIGTERM and SIGINT
 	<-ctx.Done()
 	LogInfo.Println("Stopping server")
 
@@ -151,6 +178,7 @@ func main() {
 
 }
 
+// Gets the IP address of the remote client, for logging purposes.
 func GetIP(r *http.Request) string {
 	// With reverse proxy
 	xff := r.Header.Get("X-Forwarded-For")
