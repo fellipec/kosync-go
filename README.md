@@ -111,7 +111,7 @@ systemctl enable --now kosync
 ## Auto update (linux-amd64)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fellipec/kosync-go/master/kosync-update.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/fellipec/kosync-go/master/kosync-update.sh | sudo bash
 ```
 
 ### What this script does
