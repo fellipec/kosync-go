@@ -43,13 +43,6 @@ jobs:
             go build -ldflags="-s -w -X main.Version=${TAG}" \
             -o dist/${BIN_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
 
-      - name: Generate checksums
-        run: |
-          cd dist
-          rm -f SHA256SUMS
-          sha256sum * > SHA256SUMS
-
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -67,6 +60,12 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          rm -f SHA256SUMS
+          sha256sum * > SHA256SUMS
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
