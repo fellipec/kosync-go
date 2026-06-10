@@ -12,6 +12,7 @@ type User struct {
 
 // Progress represents a book progress object, as received from the KOReader.
 type Progress struct {
+	Document   string  `json:"document"`
 	Progress   string  `json:"progress"`
 	Percentage float64 `json:"percentage"`
 	Device     string  `json:"device"`

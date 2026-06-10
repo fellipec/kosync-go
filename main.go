@@ -34,6 +34,10 @@ func main() {
 		AuthUser(w, r, &mainStore)
 	})
 
+	http.HandleFunc("/syncs/progress", func(w http.ResponseWriter, r *http.Request) {
+		UpdateProgress(w, r, &mainStore)
+	})
+
 	// Creates the HTTP listener
 	addr := fmt.Sprintf(":%d", Port)
 	fmt.Printf("kosync-go listening on port %d\n", Port)

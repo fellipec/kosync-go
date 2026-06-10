@@ -2,11 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+var ErrInvalidAuth = errors.New("invalid username or password")
 
 type CreateUserRequest struct {
 	Username string `json:"username"`
@@ -85,32 +89,83 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 func AuthUser(w http.ResponseWriter, r *http.Request, store *Store) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1024) // 1KB limit to prevent DoS
 
-	headerUser := r.Header.Get("x-auth-user")
-	headerPass := r.Header.Get("x-auth-key")
-
-	if !(headerPass == "" || headerUser == "") && authenticate(headerUser, headerPass, store) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK) // Returns 200
-		json.NewEncoder(w).Encode(map[string]string{"authorized": "OK"})
+	_, err := requiresAuth(r, store)
+	if err != nil {
+		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
 
-	http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK) // Returns 200
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"authorized": "OK",
+	})
 
 }
 
-// authenticate checks if the username and password provided match with the store
-func authenticate(user string, pass string, store *Store) bool {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-	foundUser, exists := store.Users[user]
-	if exists {
-		key := foundUser.Key
-		err := bcrypt.CompareHashAndPassword([]byte(key), []byte(pass))
-		if err != nil {
-			return false
-		}
-		return true
+func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1024) // 1KB limit to prevent DoS
+	authUser, err := requiresAuth(r, store)
+	if err != nil {
+		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+		return
 	}
-	return false
+
+	var reqProgress Progress
+
+	err = json.NewDecoder(r.Body).Decode(&reqProgress)
+	if err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if reqProgress.Document == "" || reqProgress.Progress == "" || reqProgress.Device == "" {
+		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		return
+	}
+
+	reqProgress.Timestamp = time.Now().Unix()
+
+	store.mu.Lock()
+	if store.Progresses[authUser] == nil {
+		store.Progresses[authUser] = make(map[string]Progress)
+	}
+	store.Progresses[authUser][reqProgress.Document] = reqProgress
+	store.mu.Unlock()
+
+	// Returns the success to the client
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK) // Returns 200
+	json.NewEncoder(w).Encode(map[string]any{
+		"document":  reqProgress.Document,
+		"timestamp": reqProgress.Timestamp,
+	})
+
+}
+
+// requiresAuth should be called whenever the endpoint requires authentication
+// the function will return the username if authenticated, and error if not
+func requiresAuth(r *http.Request, store *Store) (string, error) {
+	headerUser := r.Header.Get("x-auth-user")
+	headerPass := r.Header.Get("x-auth-key")
+
+	if headerPass == "" || headerUser == "" {
+		return "", ErrInvalidAuth
+	}
+
+	store.mu.RLock()
+	foundUser, exists := store.Users[headerUser]
+	store.mu.RUnlock()
+
+	if !exists {
+		return "", ErrInvalidAuth
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(foundUser.Key), []byte(headerPass))
+	if err != nil {
+		return "", ErrInvalidAuth
+	}
+	return headerUser, nil
+
 }
