@@ -1,3 +1,4 @@
 # .gitignore
-kosync-go    # o binário compilado vai ter o mesmo nome do diretório
-*.json       # pra não commitar o arquivo de dados em runtime
+kosync-go    
+kosync       
+*.json       # Don't commit the data files

@@ -37,6 +37,8 @@ import (
 var LogInfo = log.New(os.Stdout, "INFO: ", log.LstdFlags)
 var LogError = log.New(os.Stderr, "ERROR:", log.LstdFlags)
 
+var Version = "dev"
+
 // main defines the endpoints handlers, process command line parameters, deal
 // with signals from the system and periodically save the JSON file when changes
 // occur.
@@ -52,7 +54,15 @@ func main() {
 	certFile := flag.String("cert", "", "path to TLS certificate file")
 	keyFile := flag.String("key", "", "path to TLS key file")
 	listenAddr := flag.String("listen-addr", "", "which address the server will listen for connections")
+	versionFlag := flag.Bool("version", false, "displays the version and exit")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println("kosync-go ", Version)
+		return
+	}
+
+	LogInfo.Printf("Starting kosync-go version %s", Version)
 
 	// Makes sure if no port is defined to use the defaults
 	if *port == 0 {
@@ -68,6 +78,7 @@ func main() {
 	if err != nil {
 		LogError.Panicln("Couldn't initialize data store: " + err.Error())
 	}
+	LogInfo.Printf("Loaded config file %s", *storeFile)
 
 	// Handles /healthcheck, which just returns State: OK for troubleshooting purposes.
 	http.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
