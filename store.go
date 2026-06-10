@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -80,6 +81,13 @@ func LoadStore(path string) (*Store, error) {
 	err = json.NewDecoder(f).Decode(s)
 	if err != nil {
 		return s, err
+	}
+
+	if s.Users == nil {
+		return s, fmt.Errorf("invalid store: missing Users map")
+	}
+	if s.Progresses == nil {
+		return s, fmt.Errorf("invalid store: missing Progresses map")
 	}
 
 	return s, nil
