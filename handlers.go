@@ -81,3 +81,36 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 	w.WriteHeader(http.StatusCreated) // Returns 201
 	json.NewEncoder(w).Encode(map[string]string{"username": req.Username})
 }
+
+func AuthUser(w http.ResponseWriter, r *http.Request, store *Store) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1024) // 1KB limit to prevent DoS
+
+	headerUser := r.Header.Get("x-auth-user")
+	headerPass := r.Header.Get("x-auth-key")
+
+	if !(headerPass == "" || headerUser == "") && authenticate(headerUser, headerPass, store) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // Returns 200
+		json.NewEncoder(w).Encode(map[string]string{"authorized": "OK"})
+		return
+	}
+
+	http.Error(w, "Invalid username or password", http.StatusUnauthorized)
+
+}
+
+// authenticate checks if the username and password provided match with the store
+func authenticate(user string, pass string, store *Store) bool {
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	foundUser, exists := store.Users[user]
+	if exists {
+		key := foundUser.Key
+		err := bcrypt.CompareHashAndPassword([]byte(key), []byte(pass))
+		if err != nil {
+			return false
+		}
+		return true
+	}
+	return false
+}

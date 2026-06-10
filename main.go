@@ -30,6 +30,10 @@ func main() {
 		CreateUser(w, r, &mainStore)
 	})
 
+	http.HandleFunc("/users/auth", func(w http.ResponseWriter, r *http.Request) {
+		AuthUser(w, r, &mainStore)
+	})
+
 	// Creates the HTTP listener
 	addr := fmt.Sprintf(":%d", Port)
 	fmt.Printf("kosync-go listening on port %d\n", Port)
