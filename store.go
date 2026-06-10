@@ -3,11 +3,10 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 )
-
-const defaultPath = "kosync.json"
 
 // User represents a registered user with a username and a hashed password key.
 type User struct {
@@ -46,17 +45,16 @@ func SaveStore(store *Store, path string) error {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
-	if path == "" {
-		path = defaultPath
-	}
-
-	f, err := os.CreateTemp("/tmp", "kosync")
+	dir := filepath.Dir(path)
+	f, err := os.CreateTemp(dir, "kosync")
 	if err != nil {
 		return err
 	}
 
 	err = json.NewEncoder(f).Encode(store)
 	if err != nil {
+		f.Close()
+		os.Remove(f.Name())
 		return err
 	}
 	f.Close()
@@ -69,9 +67,6 @@ func SaveStore(store *Store, path string) error {
 
 func LoadStore(path string) (*Store, error) {
 	s := NewStore()
-	if path == "" {
-		path = defaultPath
-	}
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -82,7 +77,7 @@ func LoadStore(path string) (*Store, error) {
 	}
 	defer f.Close()
 
-	err = json.NewDecoder(f).Decode(&s)
+	err = json.NewDecoder(f).Decode(s)
 	if err != nil {
 		return s, err
 	}

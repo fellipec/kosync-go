@@ -4,8 +4,12 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"net/http"
+	"os/signal"
+	"syscall"
 )
 
 /*
@@ -17,9 +21,15 @@ Port is the default port the server listens on.
 const Port = 17200
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	storeFile := flag.String("store-file", "kosync.json", "path to store the JSON data file")
+	flag.Parse()
+
 	// Initializes a new store object
 
-	mainStore, err := LoadStore("")
+	mainStore, err := LoadStore(*storeFile)
 	if err != nil {
 		panic("Couldn't initialize data store: " + err.Error())
 	}
@@ -49,6 +59,13 @@ func main() {
 	// Creates the HTTP listener
 	addr := fmt.Sprintf(":%d", Port)
 	fmt.Printf("kosync-go listening on port %d\n", Port)
-	http.ListenAndServe(addr, nil)
+	go http.ListenAndServe(addr, nil)
+
+	<-ctx.Done()
+	fmt.Println("Saving state")
+	err = SaveStore(mainStore, *storeFile)
+	if err != nil {
+		panic(err.Error())
+	}
 
 }
