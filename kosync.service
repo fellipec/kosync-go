@@ -1,0 +1,18 @@
+[Unit]
+Description=KOReader Sync Server
+After=network.target
+
+[Service]
+Type=simple
+User=kosync
+ExecStart=/usr/local/bin/kosync-go \
+    --insecure \
+    --listen-addr 127.0.0.1 \
+    --port 17200 \
+    --store-file /var/lib/kosync/data.json \
+    --disable-new-users
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
