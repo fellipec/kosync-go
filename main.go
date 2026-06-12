@@ -81,14 +81,14 @@ func main() {
 	LogInfo.Printf("Loaded config file %s", *storeFile)
 
 	// Handles /healthcheck, which just returns State: OK for troubleshooting purposes.
-	http.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /healthcheck", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintln(w, "{\"state\":\"OK\"}")
 		LogInfo.Println("Health checked!")
 	})
 
 	// Handles /users/create endpoint, if the --disable-new-users option is not in use
-	http.HandleFunc("/users/create", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("POST /users/create", func(w http.ResponseWriter, r *http.Request) {
 		if *disableNewUsers {
 			http.Error(w, "Can't create new user", http.StatusForbidden)
 			ip := GetIP(r)
@@ -99,11 +99,11 @@ func main() {
 	})
 
 	// Handlers for /users/auth and //syncs/progress
-	http.HandleFunc("/users/auth", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /users/auth", func(w http.ResponseWriter, r *http.Request) {
 		AuthUser(w, r, mainStore)
 	})
 
-	http.HandleFunc("/syncs/progress", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("PUT /syncs/progress", func(w http.ResponseWriter, r *http.Request) {
 		UpdateProgress(w, r, mainStore)
 	})
 
@@ -192,7 +192,6 @@ func main() {
 
 // Gets the IP address of the remote client, for logging purposes.
 func GetIP(r *http.Request) string {
-	var ip string
 
 	// Direct connections
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)

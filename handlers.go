@@ -10,8 +10,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Default error for authentication
 var ErrInvalidAuth = errors.New("invalid username or password")
 
+// Regex for valid usernames
+var validUsername = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// Fake hash, used to computer a bcrypt when the username doesn't exist to
+// prevent a timing attack, if just return a requisition when the username
+// doesn't exists faster than when a user is legit.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy"), bcrypt.DefaultCost)
+
+// Struct for received user/pass pair.
 type CreateUserRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -44,7 +54,6 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 	}
 
 	// Checks if the provided username has valid characters and a correct size
-	var validUsername = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 	if !validUsername.MatchString(req.Username) || (len(req.Username) < 3 || len(req.Username) > 32) {
 		LogError.Printf("Invalid username:%s | IP=%s", req.Username, ip)
 		http.Error(w, "Invalid username", http.StatusBadRequest)
@@ -242,6 +251,10 @@ func requiresAuth(r *http.Request, store *Store) (string, error) {
 	store.mu.RUnlock()
 
 	if !exists {
+		// Runs bcrypt even if the user doesn't exists, to prevent timing
+		// attacks by measuring the time a real user responds and a non-existing
+		// one responds.
+		bcrypt.CompareHashAndPassword(dummyHash, []byte(headerPass))
 		return "", ErrInvalidAuth
 	}
 
