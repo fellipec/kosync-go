@@ -43,20 +43,20 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 		return
 	}
 
-	// Checks if the provided username has valid characters
+	// Checks if the provided username has valid characters and a correct size
 	var validUsername = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-	if !validUsername.MatchString(req.Username) {
-		LogError.Printf("Invalid username:%s - %v | IP=%s", req.Username, err, ip)
+	if !validUsername.MatchString(req.Username) || (len(req.Username) < 3 || len(req.Username) > 32) {
+		LogError.Printf("Invalid username:%s | IP=%s", req.Username, ip)
 		http.Error(w, "Invalid username", http.StatusBadRequest)
 		return
 	}
 
 	// Checks if the username already exists
-	store.mu.RLock()
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	_, exists := store.Users[req.Username]
-	store.mu.RUnlock()
 	if exists {
-		LogError.Printf("Username already exists:%s - %v | IP=%s", req.Username, err, ip)
+		LogError.Printf("Username already exists:%s | IP=%s", req.Username, ip)
 		http.Error(w, "Can't create new user", http.StatusConflict)
 		return
 	}
@@ -65,7 +65,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 	// More of a sanity check because in the current implementation of KOReader
 	// the password is never sent but a (insecure) MD5 hash
 	if len(req.Password) > 72 || len(req.Password) < 8 {
-		LogError.Printf("Password not meet requirements, user:%s - %v | IP=%s", req.Username, err, ip)
+		LogError.Printf("Password not meet requirements, user:%s | IP=%s", req.Username, ip)
 		http.Error(w, "Password not meet requirements", http.StatusBadRequest)
 		return
 	}
@@ -81,8 +81,6 @@ func CreateUser(w http.ResponseWriter, r *http.Request, store *Store) {
 	}
 
 	// Stores the new user
-	store.mu.Lock()
-	defer store.mu.Unlock()
 	store.Users[req.Username] = User{
 		Username: req.Username,
 		Key:      string(keyBytes),
@@ -150,6 +148,16 @@ func UpdateProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 		return
 	}
 
+	//Check the sizes of all fields
+	if len(reqProgress.Device) > 255 ||
+		len(reqProgress.DeviceID) > 255 ||
+		len(reqProgress.Document) > 255 ||
+		len(reqProgress.Progress) > 255 {
+		http.Error(w, "Fields too long", http.StatusBadRequest)
+		LogError.Printf("Fields too long: | IP=%s", ip)
+		return
+	}
+
 	// The timestamps are managed by the server
 	reqProgress.Timestamp = time.Now().Unix()
 
@@ -188,6 +196,13 @@ func GetProgress(w http.ResponseWriter, r *http.Request, store *Store) {
 
 	reqDocument := r.PathValue("document")
 
+	// Check for document field size:
+	if len(reqDocument) > 255 {
+		LogError.Printf("Document name too long | %v | IP=%s", reqDocument, ip)
+		http.Error(w, "Document name too long", http.StatusBadRequest)
+		return
+	}
+
 	store.mu.RLock()
 	foundProgress, exists := store.Progresses[authUser][reqDocument]
 	store.mu.RUnlock()
@@ -212,7 +227,13 @@ func requiresAuth(r *http.Request, store *Store) (string, error) {
 	headerUser := r.Header.Get("x-auth-user")
 	headerPass := r.Header.Get("x-auth-key")
 
+	// Check for blank name or password
 	if headerPass == "" || headerUser == "" {
+		return "", ErrInvalidAuth
+	}
+
+	// Check for username or password too long
+	if len(headerPass) > 72 || len(headerUser) > 255 {
 		return "", ErrInvalidAuth
 	}
 

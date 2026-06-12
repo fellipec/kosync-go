@@ -35,7 +35,7 @@ import (
 
 // Loggers for the program
 var LogInfo = log.New(os.Stdout, "INFO: ", log.LstdFlags)
-var LogError = log.New(os.Stderr, "ERROR:", log.LstdFlags)
+var LogError = log.New(os.Stderr, "ERROR: ", log.LstdFlags)
 
 var Version = "dev"
 
@@ -117,6 +117,7 @@ func main() {
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  30 * time.Second,
+		ErrorLog:     LogError,
 	}
 
 	// Runs the HTTP listener, obeying the CLI parameters
@@ -191,16 +192,18 @@ func main() {
 
 // Gets the IP address of the remote client, for logging purposes.
 func GetIP(r *http.Request) string {
-	// With reverse proxy
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		return xff
-	}
+	var ip string
 
 	// Direct connections
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr // fallback
+		ip = r.RemoteAddr // fallback
+	}
+
+	// With reverse proxy
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff != "" {
+		ip = xff + " (via " + ip + ")"
 	}
 	return ip
 }
