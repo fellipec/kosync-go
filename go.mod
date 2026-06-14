@@ -1,4 +1,4 @@
-module kosync
+module github.com/fellipec/kosync-go
 
 go 1.25.0
 
